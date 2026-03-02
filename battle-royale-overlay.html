@@ -175,6 +175,7 @@
     #pepe-left  { left:0; }
     #pepe-right { right:0; }
     .pepe-vid   { width:200px; height:173px; object-fit:cover; flex-shrink:0; }
+    #pepe-right .pepe-vid { transform:scaleX(-1); }
     #winner-center { display:flex; flex-direction:column; align-items:center; gap:22px; padding:0 220px; }
     #winner-eyebrow {
       font-size:18px; letter-spacing:8px; text-transform:uppercase;
@@ -466,10 +467,10 @@ function buildPepeColumn(el){
 
 // ── Config ────────────────────────────────────────────────────
 const CFG = {
-  radMin:17.5, radMax:42.5, radBase:13.75, radScale:1.375,
-  maxSpd:3.2, steerStr:0.04,
-  invincFrames:150, steerWindow:[140,100],
-  regenInterval:90, shields:3,
+  radMin:21.875, radMax:53.125, radBase:17.1875, radScale:1.71875,
+  maxSpd:3.8, steerStr:0.055,
+  invincFrames:110, steerWindow:[110,70],
+  regenInterval:120, shields:3,
   lobbyDrift:0.35,
 };
 function calcRadius(hp){
@@ -613,6 +614,22 @@ class Fighter{
     ctx.shadowColor=gc; ctx.shadowBlur=gb;
     ctx.beginPath(); ctx.arc(0,0,this.radius+2,0,Math.PI*2);
     ctx.strokeStyle=gc; ctx.lineWidth=this.eliminating?3:2; ctx.stroke(); ctx.shadowBlur=0;
+    if(this.invincible>0){
+      const invPct=Math.min(1,this.invincible/CFG.invincFrames);
+      ctx.beginPath();
+      ctx.arc(0,0,this.radius+7,-Math.PI/2,(-Math.PI/2)+(Math.PI*2*invPct));
+      ctx.strokeStyle='rgba(0,229,255,0.95)';
+      ctx.lineWidth=3;
+      ctx.shadowColor='rgba(0,229,255,0.95)';
+      ctx.shadowBlur=10;
+      ctx.stroke();
+      ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(0,229,255,0.95)';
+      ctx.font='700 10px Trueno,Arial Black,sans-serif';
+      ctx.textAlign='center';
+      ctx.textBaseline='bottom';
+      ctx.fillText('INV',0,-this.radius-10);
+    }
     ctx.save(); ctx.beginPath(); ctx.arc(0,0,this.radius,0,Math.PI*2); ctx.clip();
     const g=ctx.createRadialGradient(0,-this.radius*.3,0,0,0,this.radius);
     g.addColorStop(0,this.color+'cc'); g.addColorStop(1,this.color+'33');
@@ -643,9 +660,9 @@ class Fighter{
     const ty=by+bh+(this.shields>0?14:9);
     ctx.textAlign='center'; ctx.textBaseline='alphabetic';
     ctx.shadowColor='rgba(0,0,0,.9)'; ctx.shadowBlur=3;
-    ctx.fillStyle='#fff'; ctx.font='bold 11px Trueno,Arial Black,sans-serif';
+    ctx.fillStyle='#fff'; ctx.font='bold 14px Trueno,Arial Black,sans-serif';
     ctx.fillText(this.userName,0,ty);
-    ctx.fillStyle=hc; ctx.font='700 10px Trueno,Arial Black,sans-serif';
+    ctx.fillStyle=hc; ctx.font='700 12px Trueno,Arial Black,sans-serif';
     ctx.fillText(this.health+'hp',0,ty+12); ctx.shadowBlur=0;
   }
 }
