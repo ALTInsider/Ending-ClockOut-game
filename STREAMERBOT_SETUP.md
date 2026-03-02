@@ -54,3 +54,9 @@ It clears:
 - every `battle_{userId}_health`
 
 This prevents yesterday's clockouts from carrying into the next stream's battle.
+
+
+## OBS testing overlay file
+
+Use `battle-royale-overlay-test.html` as a separate OBS Browser Source for testing.
+It loads `battle-royale-overlay.html?mock=1` automatically, so production and test sources can coexist without renaming files.
