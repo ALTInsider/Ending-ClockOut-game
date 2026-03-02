@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clock-Out Battle Royale (Test Overlay)</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #04000c;
+    }
+    iframe {
+      border: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <!--
+    Test harness overlay:
+    - Loads the production overlay with ?mock=1 so mock fighters appear automatically.
+    - Lets OBS keep a separate Browser Source for testing without touching production file paths.
+  -->
+  <iframe src="./battle-royale-overlay.html?mock=1" title="Clock-Out Battle Royale Test Overlay"></iframe>
+</body>
+</html>
