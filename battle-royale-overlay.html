@@ -466,7 +466,7 @@ function buildPepeColumn(el){
 
 // ── Config ────────────────────────────────────────────────────
 const CFG = {
-  radMin:14, radMax:34, radBase:11, radScale:1.1,
+  radMin:17.5, radMax:42.5, radBase:13.75, radScale:1.375,
   maxSpd:3.2, steerStr:0.04,
   invincFrames:150, steerWindow:[140,100],
   regenInterval:90, shields:3,
@@ -540,7 +540,7 @@ class Fighter{
     this.pulse=Math.random()*Math.PI*2;
     this.alive=true; this.eliminating=false; this.elimTimer=0;
     this.invincible=0; this.flashTimer=0; this.shieldFlash=0;
-    this.target=null; this.steerCd=0; this.regenTimer=0; this.shields=CFG.shields;
+    this.target=null; this.steerCd=0; this.regenTimer=0; this.shields=CFG.shields; this.kills=0;
     // spawn inside arena bounds
     const ar = ARENA_RIGHT(), at = ARENA_TOP();
     this.x = this.radius+20 + Math.random()*(ar - this.radius*2 - 40);
@@ -700,9 +700,10 @@ function resolve(a,b,dx,dy,dist){
     const bToward = (b.vx*(-dx/dist2) + b.vy*(-dy/dist2)); // positive = moving toward a
     [winner, loser] = aToward >= bToward ? [a,b] : [b,a];
   } else {
-    if(a.health>b.health){winner=a;loser=b;}
-    else if(b.health>a.health){winner=b;loser=a;}
-    else{[winner,loser]=Math.random()<.5?[a,b]:[b,a];}
+    // Weighted odds: higher HP is favored, but underdogs still get a real upset path.
+    const aPower = Math.pow(Math.max(1,a.health), 0.9) * (0.92 + Math.random()*0.16);
+    const bPower = Math.pow(Math.max(1,b.health), 0.9) * (0.92 + Math.random()*0.16);
+    [winner, loser] = aPower >= bPower ? [a,b] : [b,a];
   }
 
   const lHP=loser.health, wHP=winner.health;
@@ -846,18 +847,9 @@ function loop(){
     const elapsed=t1?t1-t0:Date.now()-t0;
     topbarTimer.textContent='⏱ '+fmt(elapsed);
     const remaining=alive.length;
-    if(phase==='SHOWDOWN'||phase==='SHOWDOWN_ACTIVE'){
-      topbarCount.textContent='⚔ FINAL SHOWDOWN';
-    } else {
-      topbarCount.textContent=remaining+(remaining===1?' Fighter Left':' Fighters Remain');
-    }
-    // Trigger showdown when exactly 2 remain (only once)
-    if(remaining===2 && phase==='BATTLE'){
-      phase='SHOWDOWN';
-      const alive2=fighters.filter(f=>f.alive);
-      triggerShowdown(alive2[0], alive2[1]);
-    }
-    if(remaining<=1&&!t1&&(phase==='SHOWDOWN_ACTIVE'||phase==='DONE')){
+    topbarCount.textContent=remaining+(remaining===1?' Fighter Left':' Fighters Remain');
+    // End battle normally when one fighter remains.
+    if(remaining<=1&&!t1&&(phase==='BATTLE'||phase==='DONE')){
       t1=Date.now(); phase='DONE';
       resetBtn.classList.add('visible');
       if(remaining===1){
