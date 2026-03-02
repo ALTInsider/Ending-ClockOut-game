@@ -175,6 +175,7 @@
     #pepe-left  { left:0; }
     #pepe-right { right:0; }
     .pepe-vid   { width:200px; height:173px; object-fit:cover; flex-shrink:0; }
+    #pepe-right .pepe-vid { transform:scaleX(-1); }
     #winner-center { display:flex; flex-direction:column; align-items:center; gap:22px; padding:0 220px; }
     #winner-eyebrow {
       font-size:18px; letter-spacing:8px; text-transform:uppercase;
@@ -466,10 +467,10 @@ function buildPepeColumn(el){
 
 // ── Config ────────────────────────────────────────────────────
 const CFG = {
-  radMin:14, radMax:34, radBase:11, radScale:1.1,
-  maxSpd:3.2, steerStr:0.04,
-  invincFrames:150, steerWindow:[140,100],
-  regenInterval:90, shields:3,
+  radMin:21.875, radMax:53.125, radBase:17.1875, radScale:1.71875,
+  maxSpd:3.8, steerStr:0.055,
+  invincFrames:110, steerWindow:[110,70],
+  regenInterval:120, shields:3,
   lobbyDrift:0.35,
 };
 function calcRadius(hp){
@@ -540,7 +541,7 @@ class Fighter{
     this.pulse=Math.random()*Math.PI*2;
     this.alive=true; this.eliminating=false; this.elimTimer=0;
     this.invincible=0; this.flashTimer=0; this.shieldFlash=0;
-    this.target=null; this.steerCd=0; this.regenTimer=0; this.shields=CFG.shields;
+    this.target=null; this.steerCd=0; this.regenTimer=0; this.shields=CFG.shields; this.kills=0;
     // spawn inside arena bounds
     const ar = ARENA_RIGHT(), at = ARENA_TOP();
     this.x = this.radius+20 + Math.random()*(ar - this.radius*2 - 40);
@@ -613,6 +614,22 @@ class Fighter{
     ctx.shadowColor=gc; ctx.shadowBlur=gb;
     ctx.beginPath(); ctx.arc(0,0,this.radius+2,0,Math.PI*2);
     ctx.strokeStyle=gc; ctx.lineWidth=this.eliminating?3:2; ctx.stroke(); ctx.shadowBlur=0;
+    if(this.invincible>0){
+      const invPct=Math.min(1,this.invincible/CFG.invincFrames);
+      ctx.beginPath();
+      ctx.arc(0,0,this.radius+7,-Math.PI/2,(-Math.PI/2)+(Math.PI*2*invPct));
+      ctx.strokeStyle='rgba(0,229,255,0.95)';
+      ctx.lineWidth=3;
+      ctx.shadowColor='rgba(0,229,255,0.95)';
+      ctx.shadowBlur=10;
+      ctx.stroke();
+      ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(0,229,255,0.95)';
+      ctx.font='700 10px Trueno,Arial Black,sans-serif';
+      ctx.textAlign='center';
+      ctx.textBaseline='bottom';
+      ctx.fillText('INV',0,-this.radius-10);
+    }
     ctx.save(); ctx.beginPath(); ctx.arc(0,0,this.radius,0,Math.PI*2); ctx.clip();
     const g=ctx.createRadialGradient(0,-this.radius*.3,0,0,0,this.radius);
     g.addColorStop(0,this.color+'cc'); g.addColorStop(1,this.color+'33');
@@ -643,9 +660,9 @@ class Fighter{
     const ty=by+bh+(this.shields>0?14:9);
     ctx.textAlign='center'; ctx.textBaseline='alphabetic';
     ctx.shadowColor='rgba(0,0,0,.9)'; ctx.shadowBlur=3;
-    ctx.fillStyle='#fff'; ctx.font='bold 11px Trueno,Arial Black,sans-serif';
+    ctx.fillStyle='#fff'; ctx.font='bold 14px Trueno,Arial Black,sans-serif';
     ctx.fillText(this.userName,0,ty);
-    ctx.fillStyle=hc; ctx.font='700 10px Trueno,Arial Black,sans-serif';
+    ctx.fillStyle=hc; ctx.font='700 12px Trueno,Arial Black,sans-serif';
     ctx.fillText(this.health+'hp',0,ty+12); ctx.shadowBlur=0;
   }
 }
@@ -700,9 +717,10 @@ function resolve(a,b,dx,dy,dist){
     const bToward = (b.vx*(-dx/dist2) + b.vy*(-dy/dist2)); // positive = moving toward a
     [winner, loser] = aToward >= bToward ? [a,b] : [b,a];
   } else {
-    if(a.health>b.health){winner=a;loser=b;}
-    else if(b.health>a.health){winner=b;loser=a;}
-    else{[winner,loser]=Math.random()<.5?[a,b]:[b,a];}
+    // Weighted odds: higher HP is favored, but underdogs still get a real upset path.
+    const aPower = Math.pow(Math.max(1,a.health), 0.9) * (0.92 + Math.random()*0.16);
+    const bPower = Math.pow(Math.max(1,b.health), 0.9) * (0.92 + Math.random()*0.16);
+    [winner, loser] = aPower >= bPower ? [a,b] : [b,a];
   }
 
   const lHP=loser.health, wHP=winner.health;
@@ -846,18 +864,9 @@ function loop(){
     const elapsed=t1?t1-t0:Date.now()-t0;
     topbarTimer.textContent='⏱ '+fmt(elapsed);
     const remaining=alive.length;
-    if(phase==='SHOWDOWN'||phase==='SHOWDOWN_ACTIVE'){
-      topbarCount.textContent='⚔ FINAL SHOWDOWN';
-    } else {
-      topbarCount.textContent=remaining+(remaining===1?' Fighter Left':' Fighters Remain');
-    }
-    // Trigger showdown when exactly 2 remain (only once)
-    if(remaining===2 && phase==='BATTLE'){
-      phase='SHOWDOWN';
-      const alive2=fighters.filter(f=>f.alive);
-      triggerShowdown(alive2[0], alive2[1]);
-    }
-    if(remaining<=1&&!t1&&(phase==='SHOWDOWN_ACTIVE'||phase==='DONE')){
+    topbarCount.textContent=remaining+(remaining===1?' Fighter Left':' Fighters Remain');
+    // End battle normally when one fighter remains.
+    if(remaining<=1&&!t1&&(phase==='BATTLE'||phase==='DONE')){
       t1=Date.now(); phase='DONE';
       resetBtn.classList.add('visible');
       if(remaining===1){
@@ -934,8 +943,8 @@ function connectWS(){
         if(d.event==='battle_load'&&Array.isArray(d.participants)){
           d.participants.forEach(p=>addFighter(p.userName, p.health, true)); // silent bulk
         }
-        // Start signal from SB: { event:'battle_begin' }
-        if(d.event==='battle_begin') startBattle();
+        // Start signal from SB: { event:'battle_begin' } or legacy { event:'battle_start' }
+        if(d.event==='battle_begin' || d.event==='battle_start') startBattle();
         // Begin final showdown: { event:'final_showdown_begin' }
         if(d.event==='final_showdown_begin') beginShowdown();
       }catch(err){}
@@ -949,49 +958,53 @@ connectWS();
 // ── Preview: a few mock fighters so the lobby isn't empty ─────
 addLog('Lobby open — waiting for fighters...','log-system');
 
-// ── 40 test fighters from real Feb 24–26 clockout logs ────────
-[
-  {userName:'tlingitsoldier',  health:168},
-  {userName:'jfx316',          health:169},
-  {userName:'SergeDrago',      health:182},
-  {userName:'siccmonkey8299',  health:163},
-  {userName:'DiscoFinalBoss',  health:147},
-  {userName:'bornslippyy',     health:131},
-  {userName:'Junon01',         health:185},
-  {userName:'sd1593',          health:190},
-  {userName:'Danktank02',      health:143},
-  {userName:'Movie_sign',      health:150},
-  {userName:'ThickenWing',     health:44},
-  {userName:'nipzie',          health:51},
-  {userName:'RickNL86',        health:18},
-  {userName:'Cassie_Loves_Kimmy', health:26},
-  {userName:'AllHailSeizure90',health:18},
-  {userName:'egosumma',        health:29},
-  {userName:'AShatteredDragonsSpirit', health:24},
-  {userName:'JerichoTSK',      health:139},
-  {userName:'sap10380',        health:41},
-  {userName:'Swymco',          health:82},
-  {userName:'FifeValheru',     health:7},
-  {userName:'7venXIII',        health:38},
-  {userName:'DipShitPhilREAL', health:92},
-  {userName:'LilJiggy317',     health:3},
-  {userName:'Cheetah_Chrome',  health:4},
-  {userName:'RobustBaseCamp',  health:3},
-  {userName:'JusticeNice11',   health:35},
-  {userName:'link1019',        health:1},
-  {userName:'MrTippymac',      health:47},
-  {userName:'Kreeem-Pi',       health:40},
-  {userName:'DRPyne89',        health:180},
-  {userName:'SmoothCode',      health:177},
-  {userName:'Garmenides',      health:115},
-  {userName:'Dented_In_Renton_220_REAL', health:27},
-  {userName:'theCoC2025',      health:184},
-  {userName:'strativari0us',   health:167},
-  {userName:'Da_Pasta_M4ker',  health:93},
-  {userName:'arachnophobe',    health:43},
-  {userName:'MrTaugs',         health:6},
-  {userName:'funkyfox2041',    health:6},
-].forEach(d => addFighter(d.userName, d.health, true)); // silent — test data only
+// ── Optional mock fighters for local preview only ───────────────
+// Add ?mock=1 to the URL to prefill sample entrants during local testing.
+if (new URLSearchParams(window.location.search).get('mock') === '1') {
+  [
+    {userName:'tlingitsoldier',  health:168},
+    {userName:'jfx316',          health:169},
+    {userName:'SergeDrago',      health:182},
+    {userName:'siccmonkey8299',  health:163},
+    {userName:'DiscoFinalBoss',  health:147},
+    {userName:'bornslippyy',     health:131},
+    {userName:'Junon01',         health:185},
+    {userName:'sd1593',          health:190},
+    {userName:'Danktank02',      health:143},
+    {userName:'Movie_sign',      health:150},
+    {userName:'ThickenWing',     health:44},
+    {userName:'nipzie',          health:51},
+    {userName:'RickNL86',        health:18},
+    {userName:'Cassie_Loves_Kimmy', health:26},
+    {userName:'AllHailSeizure90',health:18},
+    {userName:'egosumma',        health:29},
+    {userName:'AShatteredDragonsSpirit', health:24},
+    {userName:'JerichoTSK',      health:139},
+    {userName:'sap10380',        health:41},
+    {userName:'Swymco',          health:82},
+    {userName:'FifeValheru',     health:7},
+    {userName:'7venXIII',        health:38},
+    {userName:'DipShitPhilREAL', health:92},
+    {userName:'LilJiggy317',     health:3},
+    {userName:'Cheetah_Chrome',  health:4},
+    {userName:'RobustBaseCamp',  health:3},
+    {userName:'JusticeNice11',   health:35},
+    {userName:'link1019',        health:1},
+    {userName:'MrTippymac',      health:47},
+    {userName:'Kreeem-Pi',       health:40},
+    {userName:'DRPyne89',        health:180},
+    {userName:'SmoothCode',      health:177},
+    {userName:'Garmenides',      health:115},
+    {userName:'Dented_In_Renton_220_REAL', health:27},
+    {userName:'theCoC2025',      health:184},
+    {userName:'strativari0us',   health:167},
+    {userName:'Da_Pasta_M4ker',  health:93},
+    {userName:'arachnophobe',    health:43},
+    {userName:'MrTaugs',         health:6},
+    {userName:'funkyfox2041',    health:6},
+  ].forEach(d => addFighter(d.userName, d.health, true));
+  addLog('Loaded 40 mock fighters (?mock=1).','log-system');
+}
 </script>
 </body>
 </html>
